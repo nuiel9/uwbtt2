@@ -22,7 +22,7 @@ is currently inside a given area of the room.
                       │  REST poll (GET /live.json, /calib.json)
                       │  PUT /control/calibrate  ("Calibrate" button)
                       ▼
-            web/index.html  ──►  X, Y, Z + top & side views + presence zones
+            web/ (static site)  ──►  X, Y, Z + top/side views + zone triggers
 ```
 
 ## Repository layout
@@ -31,7 +31,16 @@ is currently inside a given area of the room.
 |------|------------|
 | `uwb-tag/`     | Tag firmware (initiator). Ranges all 3 anchors, uploads to `/live`. |
 | `UWB-ANCHOR/`  | Anchor firmware (responder **+ web-triggered calibration**). One build, set `ANCHOR_ID` per board. |
-| `web/index.html` | Self-contained web app (no build step) — trilateration + live visualisation. |
+| `web/` | Web app (no build step) — trilateration, live visualisation, and **zone triggers**. See files below. |
+
+The `web/` folder is a static site (just open `web/index.html`):
+
+| File | What it is |
+|------|------------|
+| `index.html`      | Page structure. |
+| `styles.css`      | Styling. |
+| `app.js`          | Logic: polling, trilateration, calibration button, zone trigger engine. |
+| `zones.config.js` | **Edit this** — defines the trigger AREAS and the information each one shows. |
 
 ---
 
@@ -86,8 +95,10 @@ Data written:
 1718900000000           // a fresh number each time you press "Calibrate anchors"
 ```
 
-All distances are in **metres**. A failed range is reported as `-1`. Presence
-zones live only in the browser (`localStorage`), not in Firebase.
+All distances are in **metres**. A brief ranging dropout **holds the last good
+distance** (up to `RANGE_HOLD_MAX` ≈ 9 s) so the tag stays steady; only a
+prolonged loss is reported as `-1` ("no data"). Presence zones live only in the
+browser (`localStorage`), not in Firebase.
 
 ---
 
@@ -112,14 +123,28 @@ What you get:
 - **Top view** (X–Y map with anchors, tag, and range circles) and **side view** (X–Z height).
 - Live range/calibration telemetry, update rate, and an EMA **smoothing** control to tame jitter.
 
-### Presence zones
-Under **Zones / presence**, click **“+ Draw zone”** then drag a box on the **Top
-view** to mark an area of the room (a doorway, a desk, a bed…). Name it on
-release. Each zone is listed with a live **`here` / `empty`** indicator, and on
-the map it turns **green** while the tag is inside it. Zones are stored in world
-metres so they stay locked to the room as the view rescales, and they persist in
-the browser across reloads. (You need a calibrated layout first, so the map has
-a metre scale to draw against.)
+### Zone triggers — pop up info when the tag enters an area
+You set up trigger **areas** entirely **in the page** — no file editing. Under
+**Trigger areas**:
+
+- **+ Add area** creates one; tap it to expand the editor.
+- Edit **name, pop-up title, message, colour, icon, the area box (metres),
+  beep on/off, once-vs-repeat, cooldown, pop-up hold time, an image URL, and a
+  link**. Every change **saves automatically in your browser** (localStorage).
+- **Set area by dragging on map** lets you draw the box on the Top view instead
+  of typing coordinates.
+- **Test pop-up** previews it; **Delete area** removes it.
+- **Reset to defaults** reloads the starting set from `web/zones.config.js`.
+
+When the tag walks into an area, the app shows a **pop-up card** with that info,
+optionally **beeps**, sets the header **“In zone”** badge, draws the box in its
+colour on the Top view, and adds an **entered / left** line to the **Activity
+log**. Firing is on entry, debounced by the cooldown; with *once* off it repeats
+while you stay inside.
+
+`web/zones.config.js` only holds the **default** areas (used on first run and by
+*Reset to defaults*). Edits made in the page live in that browser; clearing site
+data or using another browser starts again from the defaults.
 
 ### About Z (height) — important
 Three anchors define a **flat plane**, so the tag's Z is computed but its **sign

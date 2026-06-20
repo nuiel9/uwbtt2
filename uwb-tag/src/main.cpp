@@ -49,6 +49,16 @@ static uint32_t status_reg = 0;
 static double distances[NUM_ANCHORS] = {-1, -1, -1};
 static uint32_t uploadSeq = 0;
 
+// When a range momentarily fails (a brief UWB dropout) we DON'T immediately
+// report -1, which would make the web app's position jump or vanish. Instead we
+// hold the last good distance for that anchor for up to RANGE_HOLD_MAX
+// consecutive misses, so a transient glitch keeps the tag steady. After that we
+// give up and report -1 so a truly gone anchor is shown as "no data".
+// One loop pass is ~360 ms, so 25 misses ≈ 9 s of holding before we let go.
+#define RANGE_HOLD_MAX 25
+static double  lastGood[NUM_ANCHORS]  = {-1, -1, -1};
+static uint8_t missCount[NUM_ANCHORS] = {0, 0, 0};
+
 extern dwt_txconfig_t txconfig_options;
 
 WiFiClientSecure secureClient;
@@ -168,7 +178,18 @@ void uploadToFirebase() {
 
 void loop() {
   for (uint8_t id = 1; id <= NUM_ANCHORS; id++) {
-    distances[id - 1] = rangeToAnchor(id);
+    uint8_t i = id - 1;
+    double d = rangeToAnchor(id);
+    if (d > 0) {                                     // good range — use & remember it
+      distances[i] = d;
+      lastGood[i]  = d;
+      missCount[i] = 0;
+    } else if (lastGood[i] > 0 && missCount[i] < RANGE_HOLD_MAX) {
+      missCount[i]++;                                // brief dropout — hold last good range
+      distances[i] = lastGood[i];
+    } else {                                         // gone too long — report no data
+      distances[i] = -1.0;
+    }
     delay(20);
   }
   uploadToFirebase();

@@ -1,57 +1,22 @@
 <!DOCTYPE html>
 <!--
-  UWB live positioning web app (self-contained, no build step).
-  - Polls Firebase /live (tag ranges) and /calib (anchor-to-anchor distances).
-  - Turns /calib into anchor coordinates and trilaterates the tag to X/Y/Z.
-  - "Calibrate anchors" button: PUTs a token to /control/calibrate, which the
-    anchors watch to run a one-off calibration (see UWB-ANCHOR/src/main.cpp).
-  - Presence zones: user-drawn rectangles (in world metres, saved in
-    localStorage) that light up when the tag is inside them.
+  UWB live positioning website (no build step — open this file in a browser).
+  Files:
+    index.html       this page (structure)
+    styles.css       styling
+    zones.config.js  DEFAULT trigger areas (seed). You normally edit areas IN THE
+                     PAGE — "Reset to defaults" reloads from this file.
+    app.js           application logic (positioning, calibration, zone editor,
+                     triggers). Edited areas are saved in the browser.
+  When the tag enters a trigger area, its information pops up, a beep can sound,
+  and the event is added to the log.
 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>UWB Positioning — Live Trilateration</title>
-<style>
-  :root{
-    --bg:#0d1117; --panel:#161b22; --line:#30363d; --txt:#e6edf3;
-    --muted:#8b949e; --accent:#58a6ff; --good:#3fb950; --bad:#f85149; --warn:#d29922;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
-  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  header h1{font-size:17px;margin:0;font-weight:600}
-  .dot{width:10px;height:10px;border-radius:50%;background:var(--bad);box-shadow:0 0 8px currentColor;color:var(--bad)}
-  .dot.ok{background:var(--good);color:var(--good)}
-  .dot.stale{background:var(--warn);color:var(--warn)}
-  main{display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px;align-items:start}
-  @media(max-width:880px){main{grid-template-columns:1fr}}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
-  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px}
-  label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
-  input[type=text],input[type=number]{width:100%;background:#0d1117;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:7px 9px;font:inherit}
-  .row{display:flex;gap:8px}
-  .row>*{flex:1}
-  .check{display:flex;align-items:center;gap:8px;margin:10px 0;color:var(--txt);font-size:13px}
-  .check input{width:16px;height:16px}
-  button{background:var(--accent);border:0;color:#fff;padding:8px 12px;border-radius:6px;font:inherit;font-weight:600;cursor:pointer}
-  button.sec{background:#21262d;border:1px solid var(--line)}
-  .xyz{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-  .xyz .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
-  .xyz .k{font-size:12px;color:var(--muted)}
-  .xyz .v{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
-  .xyz .u{font-size:12px;color:var(--muted)}
-  canvas{width:100%;background:#0a0d12;border:1px solid var(--line);border-radius:10px;display:block}
-  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
-  td{padding:3px 0;color:var(--muted)} td.v{color:var(--txt);text-align:right;font-weight:600}
-  .small{font-size:12px;color:var(--muted)}
-  .pill{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;border:1px solid var(--line)}
-  .pill.ok{color:var(--good);border-color:var(--good)} .pill.bad{color:var(--bad);border-color:var(--bad)}
-  .views{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media(max-width:880px){.views{grid-template-columns:1fr}}
-  a{color:var(--accent)}
-</style>
+<title>UWB Positioning — Live Trilateration + Zone Triggers</title>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <header>
@@ -59,6 +24,7 @@
   <h1>UWB Live Positioning</h1>
   <span id="rate" class="small"></span>
   <span id="age" class="small"></span>
+  <div class="nowin"><span>In zone:</span><span id="nowin">—</span></div>
 </header>
 
 <main>
@@ -118,19 +84,20 @@
     </div>
 
     <div class="panel" style="margin-top:14px">
-      <h2>Zones / presence</h2>
+      <h2>Trigger areas</h2>
       <div class="row">
-        <button id="drawZone" class="sec">+ Draw zone</button>
-        <button id="clearZones" class="sec">Clear all</button>
+        <button id="addZone">+ Add area</button>
+        <button id="resetZones" class="sec">Reset to defaults</button>
       </div>
       <div id="zoneHint" class="small" style="margin-top:6px">
-        Click “Draw zone”, then drag a box on the Top view. A zone lights up green when the tag is inside it.
+        Tap an area to edit it. Every field saves automatically in your browser.
+        Use <b>“Set area by dragging on map”</b> to draw the box on the Top view.
       </div>
-      <div id="zoneList" style="margin-top:8px"></div>
+      <div id="trigList" style="margin-top:8px"></div>
     </div>
   </div>
 
-  <!-- RIGHT: readouts + views -->
+  <!-- RIGHT: readouts + views + log -->
   <div>
     <div class="xyz">
       <div class="card"><div class="k">X</div><div class="v" id="X">–</div><div class="u">metres</div></div>
@@ -142,6 +109,10 @@
       <div class="panel"><h2>Side view (X–Z)</h2><canvas id="side" width="520" height="420"></canvas></div>
     </div>
     <div class="panel" style="margin-top:16px">
+      <h2>Activity log</h2>
+      <div id="log" class="log"><div class="small" style="color:var(--muted)">No zone events yet.</div></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
       <span class="small">
         3 anchors define a flat plane, so Z is computed but its sign is ambiguous
         (use the “below” toggle). For unambiguous 3D add a 4th anchor out of plane.
@@ -150,334 +121,10 @@
   </div>
 </main>
 
-<script>
-const $ = id => document.getElementById(id);
-const LS = "uwbweb.cfg";
+<!-- floating trigger cards -->
+<div id="toasts"></div>
 
-// ---- config persistence ----
-function loadCfg(){
-  try{ const c = JSON.parse(localStorage.getItem(LS)||"{}");
-    if(c.host) $("host").value=c.host;
-    if(c.poll) $("poll").value=c.poll;
-    if(c.ema!=null) $("ema").value=c.ema;
-    if(c.autocal!=null) $("autocal").checked=c.autocal;
-    if(c.below!=null) $("below").checked=c.below;
-    ["a1x","a1y","a2x","a2y","a3x","a3y"].forEach(k=>{ if(c[k]!=null) $(k).value=c[k]; });
-  }catch(e){}
-}
-function saveCfg(){
-  const c={host:$("host").value.trim(),poll:+$("poll").value,ema:+$("ema").value,
-    autocal:$("autocal").checked,below:$("below").checked};
-  ["a1x","a1y","a2x","a2y","a3x","a3y"].forEach(k=>c[k]=+$(k).value);
-  localStorage.setItem(LS,JSON.stringify(c));
-}
-loadCfg();
-$("autocal").onchange=()=>{ $("manualBox").style.display=$("autocal").checked?"none":"block"; saveCfg(); };
-$("manualBox").style.display=$("autocal").checked?"none":"block";
-["host","poll","ema","below","a1x","a1y","a2x","a2y","a3x","a3y"].forEach(k=>$(k).oninput=saveCfg);
-
-// ---- presence zones ----
-// Each zone is an axis-aligned box in WORLD metres: {id,name,xmin,xmax,ymin,ymax,occupied}.
-const ZLS="uwbweb.zones";
-let zones=[], zoneSeq=0;
-function loadZones(){
-  try{ zones=JSON.parse(localStorage.getItem(ZLS)||"[]")||[]; }catch(e){ zones=[]; }
-  zones.forEach(z=>{ z.occupied=false; if(z.id>zoneSeq) zoneSeq=z.id; });
-}
-function saveZones(){
-  // strip the live "occupied" flag before persisting
-  localStorage.setItem(ZLS,JSON.stringify(zones.map(z=>
-    ({id:z.id,name:z.name,xmin:z.xmin,xmax:z.xmax,ymin:z.ymin,ymax:z.ymax}))));
-}
-function renderZoneList(){
-  const box=$("zoneList");
-  if(!zones.length){ box.innerHTML=`<div class="small" style="color:var(--muted)">No zones yet.</div>`; return; }
-  box.innerHTML=zones.map(z=>`
-    <div class="zrow" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line)">
-      <span id="zs_${z.id}" class="pill">—</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${z.name}</span>
-      <span class="small" style="color:var(--muted)">${(z.xmax-z.xmin).toFixed(1)}×${(z.ymax-z.ymin).toFixed(1)}m</span>
-      <button class="sec zdel" data-id="${z.id}" style="padding:3px 8px">✕</button>
-    </div>`).join("");
-  box.querySelectorAll(".zdel").forEach(b=>b.onclick=()=>{
-    zones=zones.filter(z=>z.id!=+b.dataset.id); saveZones(); renderZoneList();
-  });
-  updateZoneStatus();
-}
-function updateZoneStatus(){
-  zones.forEach(z=>{ const el=$("zs_"+z.id); if(!el) return;
-    el.textContent=z.occupied?"here":"empty";
-    el.className="pill "+(z.occupied?"ok":"");
-  });
-}
-loadZones(); renderZoneList();
-
-// ---- math ----
-// Anchor coords from the 3 pairwise distances (A1 at origin, A2 on +x axis).
-function anchorsFromCalib(d12,d13,d23){
-  if(!(d12>0&&d13>0&&d23>0)) return null;
-  const x3=(d13*d13 - d23*d23 + d12*d12)/(2*d12);
-  const y2=d13*d13 - x3*x3;
-  const y3=y2>0?Math.sqrt(y2):0;
-  return [{x:0,y:0},{x:d12,y:0},{x:x3,y:y3}];
-}
-
-// Trilaterate tag (x,y,z) from anchors (z=0) and ranges r1,r2,r3.
-// below=true picks the solution under the anchor plane.
-function trilaterate(A,r,below){
-  const [A1,A2,A3]=A, [r1,r2,r3]=r;
-  const ex=A2.x-A1.x, ey=A2.y-A1.y;
-  const dx=A3.x-A1.x, dy=A3.y-A1.y;
-  // local frame along A1->A2
-  const dAB=Math.hypot(ex,ey);
-  if(dAB<1e-6) return null;
-  const ux=ex/dAB, uy=ey/dAB;
-  const i = ux*dx + uy*dy;            // A3 projection on x-axis
-  const vx=dx-i*ux, vy=dy-i*uy;
-  const j = Math.hypot(vx,vy);        // A3 height in local frame
-  if(j<1e-6) return null;             // anchors colinear
-  const x=(r1*r1 - r2*r2 + dAB*dAB)/(2*dAB);
-  const y=(r1*r1 - r3*r3 + i*i + j*j - 2*i*x)/(2*j);
-  let z2=r1*r1 - x*x - y*y;
-  const z=z2>0?Math.sqrt(z2):0;
-  // back to world coords
-  const wx=A1.x + x*ux + y*(vx/j);
-  const wy=A1.y + x*uy + y*(vy/j);
-  // fit residual against all three spheres
-  const wz = below? -z : z;
-  const fit=Math.sqrt(A.reduce((s,a,k)=>{
-    const e=Math.hypot(wx-a.x,wy-a.y,wz-0)-r[k]; return s+e*e;},0)/3);
-  return {x:wx,y:wy,z:wz,residual:fit};
-}
-
-// ---- state ----
-let timer=null, last=null, lastSeq=null, lastSeqTime=0, rateHz=0, ema=null;
-// calibration-request tracking (so we can show "done" when anchors report back)
-let calPending=false, calTsBefore=null, calReqAt=0;
-// zone drawing + last drawn scene (so pointer moves can redraw without new data)
-let lastTop=null, drawing=false, draft=null, gA=null, gP=null, gR=null;
-
-// Mark each zone occupied if the tag point (world metres) is inside it.
-function updatePresence(p){
-  zones.forEach(z=>{
-    z.occupied = !!(p && p.x>=Math.min(z.xmin,z.xmax) && p.x<=Math.max(z.xmin,z.xmax)
-                       && p.y>=Math.min(z.ymin,z.ymax) && p.y<=Math.max(z.ymin,z.ymax));
-  });
-  updateZoneStatus();
-}
-
-async function tick(){
-  const host=$("host").value.trim();
-  if(!host){ setDot("bad","no host set"); return; }
-  try{
-    const [liveR,calR]=await Promise.all([
-      fetch(`https://${host}/live.json`,{cache:"no-store"}),
-      fetch(`https://${host}/calib.json`,{cache:"no-store"})
-    ]);
-    const live=await liveR.json();
-    const cal =await calR.json().catch(()=>null);
-    if(!live){ setDot("stale","no /live data"); return; }
-    render(live,cal);
-  }catch(e){ setDot("bad","fetch error"); }
-}
-
-function setDot(cls,msg){ const d=$("dot"); d.className="dot "+(cls==="ok"?"ok":cls==="stale"?"stale":""); $("age").textContent=msg||""; }
-
-function fmt(v,d=2){ return (v==null||isNaN(v))?"–":v.toFixed(d); }
-
-function render(live,cal){
-  // ranges
-  const r=[live.d1,live.d2,live.d3].map(Number);
-  $("r1").textContent=fmt(r[0])+" m"; $("r2").textContent=fmt(r[1])+" m"; $("r3").textContent=fmt(r[2])+" m";
-  $("seq").textContent=live.seq??"–";
-
-  // rate estimate
-  if(live.seq!=null && live.seq!==lastSeq){
-    const now=performance.now();
-    if(lastSeqTime) rateHz=1000/Math.max(1,(now-lastSeqTime));
-    lastSeqTime=now; lastSeq=live.seq;
-  }
-  $("rate").textContent=rateHz?`${rateHz.toFixed(1)} Hz`:"";
-  setDot("ok","live");
-
-  // calibration-request feedback: anchors bump /calib.ts when they (re)measure.
-  if(calPending && cal){
-    if(cal.ts!=null && cal.ts!==calTsBefore){
-      calPending=false;
-      $("calReq").innerHTML=`<span class="pill ok">done</span> anchors reported new distances`;
-    }else if(performance.now()-calReqAt>25000){
-      calPending=false;
-      $("calReq").innerHTML=`<span class="pill bad">no response</span> are all 3 anchors powered + online?`;
-    }
-  }
-
-  // anchors
-  let A;
-  if($("autocal").checked && cal){
-    $("d12").textContent=fmt(cal.d12)+" m"; $("d13").textContent=fmt(cal.d13)+" m"; $("d23").textContent=fmt(cal.d23)+" m";
-    A=anchorsFromCalib(Number(cal.d12),Number(cal.d13),Number(cal.d23));
-    $("calStatus").innerHTML = A
-      ? `<span class="pill ok">calibrated</span> auto anchor layout`
-      : `<span class="pill bad">waiting</span> anchors haven’t reported all 3 distances yet`;
-  }else{
-    $("d12").textContent=$("d13").textContent=$("d23").textContent="(manual)";
-    A=[{x:+$("a1x").value,y:+$("a1y").value},{x:+$("a2x").value,y:+$("a2y").value},{x:+$("a3x").value,y:+$("a3y").value}];
-    $("calStatus").innerHTML=`<span class="pill">manual</span> using entered coordinates`;
-  }
-  if(!A){ gA=null;gP=null;gR=r; updatePresence(null); drawTop(null,null,r); drawSide(null,null); return; }
-
-  // solve
-  if(r.some(v=>!(v>0))){ $("X").textContent=$("Y").textContent=$("Z").textContent="–"; gA=A;gP=null;gR=r; updatePresence(null); drawTop(A,null,r); drawSide(A,null); return; }
-  let p=trilaterate(A,r,$("below").checked);
-  if(!p){ $("calStatus").innerHTML+=` <span class="pill bad">colinear anchors</span>`; gA=A;gP=null;gR=r; updatePresence(null); return; }
-
-  // smoothing: new = a*previous + (1-a)*current
-  const a=+$("ema").value;
-  if(a>0 && ema){ p={x:a*ema.x+(1-a)*p.x, y:a*ema.y+(1-a)*p.y, z:a*ema.z+(1-a)*p.z, residual:p.residual}; }
-  ema={x:p.x,y:p.y,z:p.z};
-
-  $("X").textContent=fmt(p.x); $("Y").textContent=fmt(p.y); $("Z").textContent=fmt(p.z);
-  $("res").textContent=fmt(p.residual,3)+" m";
-  gA=A;gP=p;gR=r; updatePresence(p);
-  drawTop(A,p,r); drawSide(A,p);
-}
-
-// ---- drawing ----
-function worldBounds(A,p){
-  let xs=A.map(a=>a.x), ys=A.map(a=>a.y);
-  if(p){ xs.push(p.x); ys.push(p.y); }
-  zones.forEach(z=>{ xs.push(z.xmin,z.xmax); ys.push(z.ymin,z.ymax); });  // keep zones in view
-  let minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
-  const pad=Math.max(1,(maxX-minX),(maxY-minY))*0.25+0.5;
-  return {minX:minX-pad,maxX:maxX+pad,minY:minY-pad,maxY:maxY+pad};
-}
-function mapper(b,W,H){
-  const sx=W/(b.maxX-b.minX), sy=H/(b.maxY-b.minY), s=Math.min(sx,sy);
-  const ox=(W-(b.maxX-b.minX)*s)/2, oy=(H-(b.maxY-b.minY)*s)/2;
-  return {X:x=>ox+(x-b.minX)*s, Y:y=>H-(oy+(y-b.minY)*s), s,
-          invX:px=>b.minX+(px-ox)/s, invY:py=>b.minY+(H-py-oy)/s};
-}
-function grid(ctx,W,H){ ctx.fillStyle="#0a0d12";ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle="#1b2330";ctx.lineWidth=1;
-  for(let x=0;x<=W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-  for(let y=0;y<=H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
-}
-function drawZone(ctx,m,z){
-  const xmin=Math.min(z.xmin,z.xmax), xmax=Math.max(z.xmin,z.xmax);
-  const ymin=Math.min(z.ymin,z.ymax), ymax=Math.max(z.ymin,z.ymax);
-  const x=m.X(xmin), y=m.Y(ymax), w=(xmax-xmin)*m.s, h=(ymax-ymin)*m.s;  // Y is flipped → use ymax for top
-  if(z.draft){ ctx.fillStyle="rgba(210,153,34,.15)"; ctx.strokeStyle="#d29922"; ctx.setLineDash([5,4]); }
-  else if(z.occupied){ ctx.fillStyle="rgba(63,185,80,.22)"; ctx.strokeStyle="#3fb950"; ctx.setLineDash([]); }
-  else { ctx.fillStyle="rgba(88,166,255,.07)"; ctx.strokeStyle="#58a6ff"; ctx.setLineDash([]); }
-  ctx.lineWidth=z.occupied?2:1;
-  ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
-  if(z.name){ ctx.fillStyle=z.occupied?"#3fb950":"#8b949e";
-    ctx.fillText(z.name+(z.occupied?" • here":""), x+4, y+14); }
-}
-function drawTop(A,p,r){
-  const c=$("top"),ctx=c.getContext("2d"),W=c.width,H=c.height; grid(ctx,W,H);
-  if(!A){ lastTop=null; ctx.fillStyle="#8b949e";ctx.fillText("waiting for anchor geometry…",20,30); return; }
-  const b=worldBounds(A,p),m=mapper(b,W,H);
-  lastTop={m,W,H};                       // remember so pointer events can map to world metres
-  // presence zones (drawn under everything else)
-  zones.forEach(z=>drawZone(ctx,m,z));
-  if(draft) drawZone(ctx,m,{...draft,name:"",occupied:false,draft:true});
-  // range circles
-  if(p&&r) A.forEach((a,k)=>{ if(r[k]>0){ ctx.strokeStyle="rgba(88,166,255,.25)";ctx.beginPath();
-    ctx.arc(m.X(a.x),m.Y(a.y),r[k]*m.s,0,7); ctx.stroke(); }});
-  // anchors
-  A.forEach((a,k)=>{ ctx.fillStyle="#d29922"; ctx.beginPath();ctx.arc(m.X(a.x),m.Y(a.y),6,0,7);ctx.fill();
-    ctx.fillStyle="#e6edf3";ctx.fillText("A"+(k+1),m.X(a.x)+9,m.Y(a.y)-9); });
-  // tag
-  if(p){ ctx.fillStyle="#3fb950"; ctx.beginPath();ctx.arc(m.X(p.x),m.Y(p.y),8,0,7);ctx.fill();
-    ctx.strokeStyle="#3fb950";ctx.beginPath();ctx.arc(m.X(p.x),m.Y(p.y),13,0,7);ctx.stroke();
-    ctx.fillStyle="#e6edf3";ctx.fillText("TAG",m.X(p.x)+12,m.Y(p.y)+4); }
-}
-function drawSide(A,p){
-  const c=$("side"),ctx=c.getContext("2d"),W=c.width,H=c.height; grid(ctx,W,H);
-  if(!A){ ctx.fillStyle="#8b949e";ctx.fillText("waiting…",20,30); return; }
-  const xs=A.map(a=>a.x).concat(p?[p.x]:[]);
-  const zs=[0].concat(p?[p.z]:[]);
-  const b={minX:Math.min(...xs)-1,maxX:Math.max(...xs)+1,minY:Math.min(...zs)-1,maxY:Math.max(...zs)+1};
-  const m=mapper(b,W,H);
-  // anchor plane (z=0)
-  ctx.strokeStyle="#d29922";ctx.setLineDash([5,4]);ctx.beginPath();
-  ctx.moveTo(0,m.Y(0));ctx.lineTo(W,m.Y(0));ctx.stroke();ctx.setLineDash([]);
-  ctx.fillStyle="#8b949e";ctx.fillText("anchor plane (z=0)",10,m.Y(0)-6);
-  A.forEach((a,k)=>{ ctx.fillStyle="#d29922";ctx.beginPath();ctx.arc(m.X(a.x),m.Y(0),5,0,7);ctx.fill(); });
-  if(p){ ctx.fillStyle="#3fb950";ctx.beginPath();ctx.arc(m.X(p.x),m.Y(p.z),8,0,7);ctx.fill();
-    ctx.strokeStyle="#30363d";ctx.beginPath();ctx.moveTo(m.X(p.x),m.Y(0));ctx.lineTo(m.X(p.x),m.Y(p.z));ctx.stroke();
-    ctx.fillStyle="#e6edf3";ctx.fillText("z="+p.z.toFixed(2)+"m",m.X(p.x)+10,m.Y(p.z)); }
-}
-
-// ---- start/stop ----
-$("start").onclick=()=>{ saveCfg(); clearInterval(timer); ema=null;
-  const ms=Math.max(100,+$("poll").value||250); tick(); timer=setInterval(tick,ms); };
-$("stop").onclick=()=>{ clearInterval(timer); timer=null; setDot("bad","stopped"); };
-
-// ---- trigger anchor calibration ----
-// Writes a fresh token to /control/calibrate. Each anchor acts once per new
-// token, ranges to its peers, and PATCHes the new distances (bumping /calib.ts).
-$("calBtn").onclick=async()=>{
-  const host=$("host").value.trim();
-  if(!host){ $("calReq").innerHTML=`<span class="pill bad">no host</span> set the Firebase host first`; return; }
-  const token=Date.now();
-  $("calReq").innerHTML=`<span class="pill">requesting…</span>`;
-  try{
-    // record the current /calib.ts so we can detect when anchors update it
-    const c=await fetch(`https://${host}/calib.json`,{cache:"no-store"}).then(r=>r.json()).catch(()=>null);
-    calTsBefore=c&&c.ts!=null?c.ts:null;
-    const r=await fetch(`https://${host}/control/calibrate.json`,{method:"PUT",body:JSON.stringify(token)});
-    if(!r.ok) throw new Error(r.status);
-    calPending=true; calReqAt=performance.now();
-    $("calReq").innerHTML=`<span class="pill ok">requested</span> anchors will measure on next poll (~3 s)…`;
-  }catch(e){
-    calPending=false;
-    $("calReq").innerHTML=`<span class="pill bad">failed</span> could not reach Firebase`;
-  }
-};
-
-// ---- zone drawing on the Top view ----
-const topC=$("top");
-function redrawTop(){ if(gA) drawTop(gA,gP,gR); }   // redraw between data ticks (e.g. while dragging)
-function evToWorld(e){
-  if(!lastTop) return null;
-  const r=topC.getBoundingClientRect();
-  const px=(e.clientX-r.left)*(topC.width/r.width);
-  const py=(e.clientY-r.top)*(topC.height/r.height);
-  return {x:lastTop.m.invX(px), y:lastTop.m.invY(py)};
-}
-$("drawZone").onclick=()=>{
-  if(!lastTop){ $("zoneHint").textContent="Start tracking first — zones need the anchor geometry to place metres."; return; }
-  drawing=true; draft=null; $("zoneHint").textContent="Drag a box on the Top view to set the zone…";
-};
-$("clearZones").onclick=()=>{ zones=[]; saveZones(); renderZoneList(); redrawTop(); };
-topC.addEventListener("pointerdown",e=>{
-  if(!drawing) return; const w=evToWorld(e); if(!w) return;
-  draft={xmin:w.x,ymin:w.y,xmax:w.x,ymax:w.y}; topC.setPointerCapture(e.pointerId);
-});
-topC.addEventListener("pointermove",e=>{
-  if(!drawing||!draft) return; const w=evToWorld(e); if(!w) return;
-  draft.xmax=w.x; draft.ymax=w.y; redrawTop();
-});
-topC.addEventListener("pointerup",e=>{
-  if(!drawing||!draft) return; const w=evToWorld(e); if(w){ draft.xmax=w.x; draft.ymax=w.y; }
-  const z={id:++zoneSeq,name:"Zone "+(zones.length+1),
-    xmin:Math.min(draft.xmin,draft.xmax), xmax:Math.max(draft.xmin,draft.xmax),
-    ymin:Math.min(draft.ymin,draft.ymax), ymax:Math.max(draft.ymin,draft.ymax), occupied:false};
-  draft=null; drawing=false;
-  $("zoneHint").textContent="Click “Draw zone”, then drag a box on the Top view. A zone lights up green when the tag is inside it.";
-  if((z.xmax-z.xmin)>0.05 && (z.ymax-z.ymin)>0.05){     // ignore tiny accidental clicks
-    const nm=prompt("Name this zone:", z.name); if(nm!==null && nm.trim()) z.name=nm.trim();
-    zones.push(z); saveZones(); renderZoneList();
-  }
-  redrawTop();
-});
-
-// auto-start if host already configured
-if($("host").value.trim()) $("start").onclick();
-// draw the empty board once so the canvas isn't blank before tracking starts
-if(!timer){ drawTop(null,null,null); drawSide(null,null); }
-</script>
+<script src="zones.config.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
