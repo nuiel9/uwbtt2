@@ -11,7 +11,7 @@
 const char* WIFI_SSID     = "";
 const char* WIFI_PASSWORD = "";
 // Your Realtime Database URL, WITHOUT https:// and WITHOUT trailing slash:
-const char* FIREBASE_HOST = "";
+const char* FIREBASE_HOST = "uwb-positioning-a2892-default-rtdb.asia-southeast1.firebasedatabase.app";
 // ===========================
 
 #define APP_NAME "UWB Tag -> Firebase"
