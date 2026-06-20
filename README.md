@@ -19,10 +19,10 @@ is currently inside a given area of the room.
     │ WiFi: PUT /live  {d1,d2,d3}         │ WiFi: PATCH /calib {d12,d13,d23}
     ▼                                     ▲  GET /control/calibrate  (poll for request)
             Firebase Realtime Database ───┘
-                      │  REST poll (GET /live.json, /calib.json)
-                      │  PUT /control/calibrate  ("Calibrate" button)
-                      ▼
-            web/ (static site)  ──►  X, Y, Z + top/side views + zone triggers
+              │  control site: GET /live,/calib · PUT /control/calibrate, /display
+              │  viewer site:  GET /live,/calib,/display   (read-only)
+              ▼
+   index.html (control: setup + zone editor)   viewer.html (map + notifications)
 ```
 
 ## Repository layout
@@ -37,10 +37,16 @@ The `web/` folder is a static site (just open `web/index.html`):
 
 | File | What it is |
 |------|------------|
-| `index.html`      | Page structure. |
-| `styles.css`      | Styling. |
-| `app.js`          | Logic: polling, trilateration, calibration button, zone trigger engine. |
-| `zones.config.js` | **Edit this** — defines the trigger AREAS and the information each one shows. |
+| `index.html` / `app.js` | **Control site** — all setup: host, calibration, geometry, telemetry, and the zone editor. |
+| `viewer.html` / `viewer.js` | **Viewer site** — read-only website: welcome → pick a map → live map + notifications → responses history. |
+| `styles.css`      | Shared styling. |
+| `zones.config.js` | Default trigger areas (seed for the control site's editor). |
+
+The **control site** is where you configure everything; it publishes its zones +
+render options to Firebase `/display`. The **viewer site** reads `/display` (plus
+`/live` and `/calib`) and just shows the map and pops notifications — handy for a
+wall display or phone with no controls. Open it from the control site's
+**“Open viewer”** button, or directly as `viewer.html?host=YOUR-DB`.
 
 ---
 
@@ -91,8 +97,12 @@ Data written:
 // /calib               (anchors, PATCH merges keys)
 { "d12": 4.02, "d13": 3.55, "d23": 2.98, "ts": 88110 }
 
-// /control/calibrate   (web app, PUT — a token the anchors watch)
+// /control/calibrate   (control site, PUT — a token the anchors watch)
 1718900000000           // a fresh number each time you press "Calibrate anchors"
+
+// /display             (control site, PUT — config for the read-only viewer)
+{ "ts": …, "below": false, "ema": 0.3, "autocal": true,
+  "anchors": [ … ], "zones": [ { "name": "Front door", "xmin": 0, … } ] }
 ```
 
 All distances are in **metres**. A brief ranging dropout **holds the last good
@@ -145,6 +155,28 @@ while you stay inside.
 `web/zones.config.js` only holds the **default** areas (used on first run and by
 *Reset to defaults*). Edits made in the page live in that browser; clearing site
 data or using another browser starts again from the defaults.
+
+### Viewer site (full read-only website)
+`web/viewer.html` is a separate, **read-only** website for a wall display,
+tablet, or anyone who shouldn't see the controls. It's a small single-page app
+with several screens (navigation bar at the top):
+
+- **Home** — a welcome screen.
+- **Maps** — pick which place to watch. A “map” is a saved name + Firebase host,
+  stored in that browser; add/edit/delete as many as you like (e.g. several
+  rooms or deployments). Selecting one makes it active.
+- **Live map** — the live map for the active map, with the same zone
+  **notifications** (pop-up cards + beep + an “In zone” badge).
+- **Responses** — a running history of every zone **entered / left** event, with
+  a per-zone filter and a clear button (kept in the browser).
+- **About** — what the system is.
+
+No host field on the main views, no calibration, no editor. The host comes from
+the control site's **“Open viewer”** button (which passes `?host=…` and seeds a
+map), or you add a map by hand. Everything else — anchor geometry, smoothing, and
+the trigger areas — is read live from Firebase `/display`, which the control site
+publishes whenever you change a zone or option. So you set things up once on the
+control site and every viewer updates automatically.
 
 ### About Z (height) — important
 Three anchors define a **flat plane**, so the tag's Z is computed but its **sign

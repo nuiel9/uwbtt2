@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<!--
+  viewer.html — READ-ONLY front-end website (welcome → pick a map → live map +
+  notifications → responses history). All setup/editing stays on the control site
+  (index.html); this site only reads Firebase (/live, /calib, /display).
+  Maps here are saved "places" (a name + the Firebase host) kept in this browser.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UWB Tracker</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="viewer">
+
+<nav class="topnav">
+  <span class="brand">📡 UWB Tracker</span>
+  <span class="navlinks">
+    <a href="#welcome" data-screen="welcome">Home</a>
+    <a href="#maps" data-screen="maps">Maps</a>
+    <a href="#live" data-screen="live">Live map</a>
+    <a href="#responses" data-screen="responses">Responses</a>
+    <a href="#about" data-screen="about">About</a>
+  </span>
+  <span class="right">
+    <span id="activeMapName" class="small"></span>
+    <span id="dot" class="dot"></span>
+  </span>
+</nav>
+
+<!-- WELCOME -->
+<section id="screen-welcome" class="screen">
+  <div class="hero">
+    <div class="badge">📡</div>
+    <h1>Real-time indoor tracking</h1>
+    <p>Watch the tag move through your space on a live map, and get instant
+       notifications the moment it steps into an area you care about.</p>
+    <div class="cta">
+      <button id="welGo">Choose a map →</button>
+      <button id="welLive" class="sec">Open last map</button>
+    </div>
+    <div class="feat">
+      <div class="f"><div class="i">🗺️</div><h3>Live map</h3><p>See the tag and your anchors update several times a second.</p></div>
+      <div class="f"><div class="i">🔔</div><h3>Zone alerts</h3><p>Pop-ups and beeps when the tag enters an area.</p></div>
+      <div class="f"><div class="i">🧾</div><h3>Responses</h3><p>A running history of every entry and exit.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- MAP SELECTION -->
+<section id="screen-maps" class="screen">
+  <div class="sectionhead">
+    <h2>Your maps</h2>
+    <button id="addMapBtn" class="sec">+ Add map</button>
+  </div>
+  <div class="small" style="color:var(--muted);margin-bottom:10px">
+    A “map” is a place to watch — a name plus its positioning database host.
+  </div>
+  <div id="mapGrid" class="mapgrid"></div>
+</section>
+
+<!-- LIVE MAP -->
+<section id="screen-live" class="screen">
+  <div class="livehead">
+    <h2 id="liveTitle">Live map</h2>
+    <span id="rate" class="small"></span>
+    <span id="age" class="small"></span>
+    <div class="nowin"><span>In zone:</span><span id="nowin">—</span></div>
+  </div>
+  <div class="vmain">
+    <div class="panel vmap"><canvas id="top" width="900" height="640"></canvas></div>
+    <div class="panel vlog">
+      <h2>Notifications</h2>
+      <div id="liveLog" class="log"><div class="small" style="color:var(--muted)">No zone events yet.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- RESPONSES -->
+<section id="screen-responses" class="screen">
+  <div class="sectionhead"><h2>Responses</h2></div>
+  <div class="respbar">
+    <label class="small" style="margin:0">Filter zone</label>
+    <select id="respFilter"><option value="">All zones</option></select>
+    <button id="respClear" class="sec">Clear history</button>
+  </div>
+  <div id="respList" class="resplist log"></div>
+</section>
+
+<!-- ABOUT -->
+<section id="screen-about" class="screen">
+  <div class="sectionhead"><h2>About</h2></div>
+  <div class="panel" style="max-width:640px">
+    <p>This is the <b>viewer</b> for a UWB (ultra-wideband) indoor positioning
+       system. A tag ranges to three fixed anchors; the distances go to a
+       database, and this page turns them into a live position on the map.</p>
+    <p>Setup — calibration, geometry and the trigger areas — is done on the
+       separate <b>control site</b>. This viewer is read-only.</p>
+    <p class="small" style="color:var(--muted)">Areas and options are read live
+       from the control site, so anything you change there shows up here.</p>
+  </div>
+</section>
+
+<!-- add/edit map dialog -->
+<div id="mapWrap" class="modal">
+  <div class="modalbox">
+    <h3 id="mapDlgTitle">Add a map</h3>
+    <label>Map name</label>
+    <input id="mapName" type="text" placeholder="e.g. Living room" />
+    <label>Firebase host (no https://, no trailing /)</label>
+    <input id="mapHost" type="text" placeholder="your-db.firebaseio.com" />
+    <label>Note (optional)</label>
+    <input id="mapNote" type="text" placeholder="anything to remember" />
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button id="mapCancel" class="sec">Cancel</button>
+      <button id="mapSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- floating notification cards -->
+<div id="toasts"></div>
+
+<script src="viewer.js"></script>
+</body>
+</html>

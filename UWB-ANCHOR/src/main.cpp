@@ -109,16 +109,34 @@ void connectWiFi() {
   if (strlen(WIFI_SSID) == 0) { wifiEnabled = false; return; }
   wifiEnabled = true;
   Serial.printf("[WiFi] Connecting to '%s'", WIFI_SSID);
+  // A WPA2 passphrase is 8-63 chars; anything shorter can never authenticate.
+  if (strlen(WIFI_PASSWORD) > 0 && strlen(WIFI_PASSWORD) < 8)
+    Serial.printf("\n[WiFi] WARNING: password is %d chars — WPA2 needs >= 8, so this WILL fail.\n",
+                  (int)strlen(WIFI_PASSWORD));
+
+  WiFi.persistent(false);   // don't reuse stale creds saved in flash (a common AUTH_FAIL cause)
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-    delay(500); Serial.print(".");
+  WiFi.setSleep(false);     // steadier connection, fewer drops
+
+  // ESP32 can spuriously report AUTH_FAIL on the first attempt, then join on a
+  // fresh begin(). Try a few times before giving up.
+  for (int attempt = 1; attempt <= 3 && WiFi.status() != WL_CONNECTED; attempt++) {
+    WiFi.disconnect(true, true);   // clear any half-open state
+    delay(200);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    uint32_t start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+      delay(500); Serial.print(".");
+    }
   }
-  if (WiFi.status() == WL_CONNECTED)
+
+  if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("\n[WiFi] Connected. IP: %s\n", WiFi.localIP().toString().c_str());
-  else
-    Serial.println("\n[WiFi] FAILED (will retry on upload).");
+  } else {
+    Serial.printf("\n[WiFi] FAILED (status %d). 202=AUTH_FAIL usually means wrong password;\n"
+                  "       also check the network is 2.4 GHz (ESP32 can't see 5 GHz). SSID='%s'.\n"
+                  "       Will retry on upload.\n", WiFi.status(), WIFI_SSID);
+  }
   secureClient.setInsecure();  // skip cert validation (fine for prototyping)
 }
 

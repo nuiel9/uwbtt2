@@ -26,6 +26,7 @@ function saveCfg(){
     autocal:$("autocal").checked,below:$("below").checked};
   ["a1x","a1y","a2x","a2y","a3x","a3y"].forEach(k=>c[k]=+$(k).value);
   localStorage.setItem(LS,JSON.stringify(c));
+  if(typeof publishDisplaySoon==="function") publishDisplaySoon();  // mirror options to the viewer
 }
 loadCfg();
 $("autocal").onchange=()=>{ $("manualBox").style.display=$("autocal").checked?"none":"block"; saveCfg(); };
@@ -68,6 +69,22 @@ const EDIT_FIELDS = ["id","name","title","message","color","icon","xmin","ymin",
 function saveZones(){
   const out = zones.map(z=>{ const o={}; EDIT_FIELDS.forEach(k=>o[k]=z[k]); return o; });
   localStorage.setItem(ZKEY, JSON.stringify(out));
+  publishDisplaySoon();   // push to the read-only viewer site too
+}
+
+// ---- publish config to Firebase /display so the viewer (viewer.html) can read
+// the zones + render options. The control site is the only writer. ----
+let pubTimer=null;
+function publishDisplaySoon(){ clearTimeout(pubTimer); pubTimer=setTimeout(publishDisplay,600); }
+async function publishDisplay(){
+  const host=$("host").value.trim(); if(!host) return;
+  const payload={
+    ts:Date.now(),
+    below:$("below").checked, ema:+$("ema").value, autocal:$("autocal").checked,
+    anchors:[{x:+$("a1x").value,y:+$("a1y").value},{x:+$("a2x").value,y:+$("a2y").value},{x:+$("a3x").value,y:+$("a3y").value}],
+    zones: zones.map(z=>{ const o={}; EDIT_FIELDS.forEach(k=>o[k]=z[k]); return o; })
+  };
+  try{ await fetch(`https://${host}/display.json`,{method:"PUT",body:JSON.stringify(payload)}); }catch(e){}
 }
 function loadZones(){
   let saved=null;
@@ -440,7 +457,15 @@ function drawSide(A,p){
 // ---------------------------------------------------------------------------
 $("start").onclick=()=>{ saveCfg(); clearInterval(timer); ema=null;
   try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume&&audioCtx.resume(); }catch(e){}
+  publishDisplay();
   const ms=Math.max(100,+$("poll").value||250); tick(); timer=setInterval(tick,ms); };
+
+// Open the read-only map+notifications view (passes the host along).
+const viewerBtn=$("openViewer");
+if(viewerBtn) viewerBtn.onclick=()=>{
+  const host=$("host").value.trim();
+  window.open("viewer.html"+(host?`?host=${encodeURIComponent(host)}`:""),"_blank");
+};
 $("stop").onclick=()=>{ clearInterval(timer); timer=null; setDot("bad","stopped"); };
 
 // ---------------------------------------------------------------------------
