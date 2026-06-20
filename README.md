@@ -139,8 +139,15 @@ You set up trigger **areas** entirely **in the page** — no file editing. Under
 
 - **+ Add area** creates one; tap it to expand the editor.
 - Edit **name, pop-up title, message, colour, icon, the area box (metres),
-  beep on/off, once-vs-repeat, cooldown, pop-up hold time, an image URL, and a
-  link**. Every change **saves automatically in your browser** (localStorage).
+  beep on/off, once-vs-repeat, cooldown, pop-up hold time, an image URL, an
+  audio-guide URL, and a link**. Every change **saves automatically in your
+  browser** (localStorage).
+- **Audio guides:** set an *Audio guide URL* on a zone and that clip plays
+  automatically when the tag enters (great for a museum / tour). The viewer shows
+  a player so visitors can pause or replay. The starter set in `zones.config.js`
+  is the SK TechChange tour — 6 attractions with images + MP3s under
+  `web/attractions/`. (Browsers need one tap to allow audio: **Start** on the
+  control site, **🔊 Enable audio** on the viewer.)
 - **Set area by dragging on map** lets you draw the box on the Top view instead
   of typing coordinates.
 - **Test pop-up** previews it; **Delete area** removes it.

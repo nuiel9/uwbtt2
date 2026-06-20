@@ -6,66 +6,51 @@
  *  This file is only the default set used on first run and when you click
  *  "Reset to defaults". Editing it here changes those defaults.
  *
- *  Each entry defines an AREA in the room and the INFORMATION that pops up when
- *  the tag walks into it. Coordinates are in METRES, in the same frame the app
- *  uses for positioning:
- *      A1 = (0,0)   A2 = (d12, 0)   A3 solved from d13/d23
- *  Tip: in the page, "Set area by dragging on map" lets you draw the box
- *  visually instead of typing coordinates.
+ *  Each entry defines an AREA in the room and what happens when the tag enters:
+ *  an info pop-up (title + message + image) and, if set, an AUDIO GUIDE that
+ *  plays automatically. Coordinates are in METRES in the positioning frame
+ *  (A1=(0,0), A2=(d12,0), A3 from d13/d23). Tip: in the page use "Set area by
+ *  dragging on map" to place a box visually, and add an "Audio guide URL".
  *
- *  Fields per area:
- *    name        (required) short label, also shown on the map
- *    area        (required) { xmin, ymin, xmax, ymax } box in metres
- *    title       big heading shown when the tag enters
- *    message     body text / the information to surface
- *    color       accent colour (any CSS colour). Defaults to blue.
- *    icon        an emoji shown on the card (optional)
- *    image       image URL shown on the card (optional)
- *    link        { label, url } button on the card (optional)
- *    sound       true = short beep on entry (default false)
- *    once        true = fire once per visit (default true). false = re-fire is
- *                allowed but rate-limited by cooldownMs.
- *    cooldownMs  minimum gap between re-fires while inside / on re-entry (ms).
- *    holdMs      how long the pop-up card stays before auto-dismiss (ms).
+ *  The starter set below is the SK TechChange tour (6 attractions, files in
+ *  ./attractions). The boxes assume a ~10 m × 6 m room — recalibrate / redraw to
+ *  match your real layout.
  * ========================================================================== */
 
 window.ZONE_TRIGGERS = [
-  {
-    name: "Front door",
-    area: { xmin: 0.0, ymin: 0.0, xmax: 1.5, ymax: 1.2 },
-    title: "Welcome home 👋",
-    message: "Entry detected at the front door. Hallway lights turned on.",
-    color: "#3fb950",
-    icon: "🚪",
-    sound: true,
-    once: true,
-    cooldownMs: 5000,
-    holdMs: 6000,
-  },
-  {
-    name: "Desk",
-    area: { xmin: 2.0, ymin: 1.5, xmax: 3.2, ymax: 2.6 },
-    title: "At the desk",
-    message: "Focus mode on. Notifications silenced while you're working here.",
-    color: "#58a6ff",
-    icon: "💻",
-    sound: false,
-    once: true,
-    cooldownMs: 10000,
-    holdMs: 5000,
-  },
-  {
-    name: "Kitchen",
-    area: { xmin: 3.5, ymin: 0.0, xmax: 5.0, ymax: 2.0 },
-    title: "Kitchen",
-    message: "Reminder: you left the oven timer running.",
-    color: "#d29922",
-    icon: "🍳",
-    sound: true,
-    once: false,        // allowed to fire again on re-entry…
-    cooldownMs: 15000,  // …but no more than once every 15 s
-    holdMs: 6000,
-    // image: "https://example.com/recipe.jpg",
-    // link:  { label: "Open recipe", url: "https://example.com/recipe" },
-  },
+  { name:"Long Building", icon:"🏛️", color:"#58a6ff",
+    area:{ xmin:-1.2, ymin:-1.2, xmax:1.2, ymax:1.2 },
+    title:"Long Building", message:"Historic long building — a landmark of the campus.",
+    image:"attractions/a1-Long-building.jpeg", audio:"attractions/a1-Long-building.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
+
+  { name:"Luang Pu", icon:"🙏", color:"#d29922",
+    area:{ xmin:3.8, ymin:-1.2, xmax:6.2, ymax:1.2 },
+    title:"Luang Pu", message:"Statue and shrine of Luang Pu, a revered figure.",
+    image:"attractions/a2-Luang-Pu.jpeg", audio:"attractions/a2-Luang-Pu.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
+
+  { name:"Planetarium", icon:"🪐", color:"#a371f7",
+    area:{ xmin:8.8, ymin:-1.2, xmax:11.2, ymax:1.2 },
+    title:"Planetarium", message:"Planetarium dome — explore the stars and the solar system.",
+    image:"attractions/a3-Planetarium.jpeg", audio:"attractions/a3-Planetarium.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
+
+  { name:"Edu Museum", icon:"🔬", color:"#3fb950",
+    area:{ xmin:-1.2, ymin:4.8, xmax:1.2, ymax:7.2 },
+    title:"Edu Museum", message:"Educational museum with rotating science and history exhibits.",
+    image:"attractions/a4-Edu-Museum.jpg", audio:"attractions/a4-Edu-Museum.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
+
+  { name:"King Rama V", icon:"👑", color:"#f0883e",
+    area:{ xmin:3.8, ymin:4.8, xmax:6.2, ymax:7.2 },
+    title:"King Rama V", message:"Monument honouring King Rama V (Chulalongkorn the Great).",
+    image:"attractions/a5-KingRamaV.jpg", audio:"attractions/a5-KingRamaV.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
+
+  { name:"Horror", icon:"👻", color:"#f85149",
+    area:{ xmin:8.8, ymin:4.8, xmax:11.2, ymax:7.2 },
+    title:"Horror", message:"Horror attraction — not for the faint-hearted.",
+    image:"attractions/a6-Horror.jpeg", audio:"attractions/a6-Horror.mp3",
+    sound:true, once:true, cooldownMs:15000, holdMs:12000 },
 ];

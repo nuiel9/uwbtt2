@@ -24,6 +24,7 @@
     <a href="#about" data-screen="about">About</a>
   </span>
   <span class="right">
+    <button id="enableAudio" class="sec" style="padding:6px 10px">🔊 Enable audio</button>
     <span id="activeMapName" class="small"></span>
     <span id="dot" class="dot"></span>
   </span>
@@ -67,6 +68,10 @@
     <span id="rate" class="small"></span>
     <span id="age" class="small"></span>
     <div class="nowin"><span>In zone:</span><span id="nowin">—</span></div>
+  </div>
+  <div id="guideBar" class="panel guidebar" style="display:none">
+    <span id="guideNow" class="small"></span>
+    <audio id="guide" controls preload="none"></audio>
   </div>
   <div class="vmain">
     <div class="panel vmap"><canvas id="top" width="900" height="640"></canvas></div>

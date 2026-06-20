@@ -1,0 +1,80 @@
+:root{
+  --bg:#0f1720;
+  --card:#0b1220;
+  --muted:#9aa4b2;
+  --accent:#06f;
+  --glass: rgba(255,255,255,0.03);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  background:linear-gradient(180deg,#071027 0%, #081226 100%);
+  color:#e6eef6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+header h1{margin:6px 0;font-size:20px}
+.sub{color:var(--muted);margin:0 0 8px}
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.tag-buttons{display:flex;gap:8px}
+.tag-btn{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;color:inherit}
+.tag-btn.active{background:linear-gradient(90deg,var(--accent),#6af);color:#012}
+.audio-setup{display:flex;gap:8px;align-items:center}
+.map-area{display:grid;grid-template-columns:1fr 280px;gap:12px;margin-top:12px}
+#map{
+  background:linear-gradient(180deg,#06102a,#081026);
+  border:2px solid rgba(255,255,255,0.18);
+  border-radius:10px;
+  padding:0;
+  position:relative;
+  width:40vw;
+  max-width:40vw;
+  aspect-ratio: 10 / 6;
+  min-height:0;
+  height:auto;
+  overflow:visible;
+}
+.info{background:var(--card);padding:12px;border-radius:10px;min-width:0;overflow:hidden}
+.info h2{margin:0 0 6px}
+.info #point-img{display:block;width:100%;max-width:min(60vw, 100%);height:auto;max-height:60vh;object-fit:cover;border-radius:8px;margin:6px 0;background:#0a1428}
+.info #point-audio{display:block;width:100%;max-width:100%;margin-top:8px}
+.status{margin-top:10px;color:var(--muted)}
+.simulator{margin-top:12px;background:rgba(255,255,255,0.02);padding:10px;border-radius:8px}
+.simulator input[type=range]{width:100%;margin:6px 0}
+.sim-coords{color:var(--muted);font-size:13px}
+footer{margin-top:12px;color:var(--muted);font-size:12px}
+
+/* map markers */
+.marker{position:absolute;width:20px;height:20px;border-radius:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.marker.attraction{background:linear-gradient(180deg,#ffd36b,#ff7b6b);color:#102}
+.marker.tag{background:linear-gradient(180deg,#7dd3fc,#0284c7);color:#012;border:2px solid rgba(255,255,255,0.08);width:18px;height:18px}
+
+.range-ring{position:absolute;border-radius:50%;border:2px dashed rgba(255,255,255,0.06);transform:translate(-50%,-50%)}
+
+/* auto-walk simulator */
+.auto-walk{margin-top:12px;background:rgba(255,255,255,0.02);padding:10px 14px;border-radius:8px}
+.walk-schedule{margin:6px 0;font-size:13px;color:var(--muted);line-height:1.9}
+.ws-tag{display:inline-block;padding:1px 7px;border-radius:4px;font-weight:700;margin-right:6px;font-size:12px}
+.ws-tag.t1{background:#0284c7;color:#fff}
+.ws-tag.t2{background:#7c3aed;color:#fff}
+.ws-tag.t3{background:#059669;color:#fff}
+.walk-controls{display:flex;gap:12px;margin:10px 0 12px;flex-wrap:wrap}
+.walk-controls button{flex:1 1 160px;min-height:54px;padding:14px 22px;font-size:17px;font-weight:700;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--glass);color:inherit;cursor:pointer}
+.walk-controls button#walk-start{background:linear-gradient(90deg,#06b97a,#34d399);color:#022}
+.walk-controls button#walk-stop{background:linear-gradient(90deg,#dc2626,#f97316);color:#fff}
+.walk-controls button:not([disabled]):hover{filter:brightness(1.08)}
+.walk-controls button[disabled]{opacity:.4;cursor:not-allowed;filter:grayscale(.4)}
+.walk-dwell{border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;margin:0 0 10px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:rgba(255,255,255,0.02)}
+.walk-dwell legend{padding:0 6px;color:var(--muted);font-size:13px}
+.walk-dwell label{display:inline-flex;align-items:center;gap:6px;font-size:14px;cursor:pointer}
+.walk-dwell input[type=radio]{width:18px;height:18px;accent-color:var(--accent)}
+#walk-status{font-size:13px;color:var(--muted);margin-bottom:4px}
+#walk-log{list-style:none;margin:0;padding:0;max-height:140px;overflow-y:auto;font-size:12px;color:var(--muted)}
+#walk-log li{padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03)}
+
+@media(max-width:760px){
+  .map-area{grid-template-columns:1fr}
+  .info{order:3}
+}

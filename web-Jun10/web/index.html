@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ThAI Tourist Buddy — SK TechChange</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>ThAI Tourist Buddy - SK TechChange</h1>
+      <p class="sub">Select your tag, move around the room — info and audio play automatically.</p>
+    </header>
+
+    <section class="controls">
+      <div class="tags">
+        <label>Choose tag:</label>
+        <div class="tag-buttons">
+          <button data-tag="1" class="tag-btn">Tag 1</button>
+          <button data-tag="2" class="tag-btn">Tag 2</button>
+          <button data-tag="3" class="tag-btn">Tag 3</button>
+        </div>
+      </div>
+
+      <div class="audio-setup">
+        <button id="unlock-audio">Enable Audio (required on iPhone)</button>
+      </div>
+    </section>
+
+    <section class="map-area">
+      <div id="map" aria-label="room map"></div>
+      <aside class="info" id="info">
+        <h2 id="point-title">No attraction nearby</h2>
+        <img id="point-img" alt="" style="display:none" />
+        <p id="point-desc">Move near an attraction point to see details and hear the audio guide.</p>
+        <audio id="point-audio" controls preload="none" style="display:none"></audio>
+      </aside>
+    </section>
+
+    <section class="status">
+      <div id="status-text">Not connected to Firebase — simulation mode enabled.</div>
+    </section>
+
+    <section class="auto-walk">
+      <h3>Auto Walk — 3 Tags × 6 Attractions (writes to Firebase)</h3>
+      <div class="walk-controls">
+        <button id="walk-start">&#9654; Start Auto Walk</button>
+        <button id="walk-stop" disabled>&#9632; Stop</button>
+      </div>
+      <fieldset class="walk-dwell">
+        <legend>Stop at each point for:</legend>
+        <label><input type="radio" name="walk-dwell" value="90" checked /> 90 seconds</label>
+        <label><input type="radio" name="walk-dwell" value="10" /> 10 seconds</label>
+      </fieldset>
+      <p class="sub">All tags start at the middle of the left wall. Walk 3 s to an attraction, stop for 10 s, then move on. Each tag visits every attraction once per loop (no two tags share the same spot). Stop returns all tags to the start.</p>
+      <div class="walk-schedule">
+        <span class="ws-tag t1">Tag 1</span> A → B → C → D → E → F → &hellip;
+        <span class="ws-tag t2">Tag 2</span> B → C → D → E → F → A → &hellip;
+        <span class="ws-tag t3">Tag 3</span> C → D → E → F → A → B → &hellip;
+      </div>
+      <div id="walk-status"></div>
+      <ul id="walk-log"></ul>
+    </section>
+
+    <section class="live-connect">
+      <h3>Live (real UWB tag)</h3>
+      <p class="sub">Reads the ESP32 firmware's data (<code>/live</code> distances + <code>/calib</code>) straight from Firebase and works out the position here — no API key needed. Calibrate the anchors first (on the control site).</p>
+      <label>Firebase host</label>
+      <input id="live-host" type="text" placeholder="your-db.firebaseio.com" />
+      <div class="walk-controls">
+        <button id="live-connect">&#9654; Connect live</button>
+        <button id="live-disconnect" disabled>&#9632; Disconnect</button>
+      </div>
+      <div id="live-status" class="sub"></div>
+    </section>
+
+    <section class="simulator">
+      <h3>Simulator (for testing without ESP32)</h3>
+      <label>Tag: <span id="sim-tag">1</span></label>
+      <input id="sim-x" type="range" min="0" max="10" step="0.1" value="1" />
+      <input id="sim-y" type="range" min="0" max="6"  step="0.1" value="1" />
+      <div class="sim-coords">x: <span id="simx">1</span> y: <span id="simy">1</span></div>
+      <button id="sim-send">Send simulated position</button>
+    </section>
+
+    <footer>
+      <small>Replace Firebase config in app.js to connect real ESP32 data. See README for details.</small>
+    </footer>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

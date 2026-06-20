@@ -119,6 +119,11 @@ a{color:var(--accent)}
 .vlog{position:sticky;top:74px}
 .vlog .log{max-height:64vh}
 
+/* audio guide bar (live screen) */
+.guidebar{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:10px 14px;flex-wrap:wrap}
+.guidebar #guideNow{font-weight:600;color:var(--txt)}
+.guidebar audio{flex:1;min-width:200px;max-width:560px;height:36px}
+
 /* responses screen */
 .respbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .respbar select{background:#0d1117;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:7px 9px;font:inherit}

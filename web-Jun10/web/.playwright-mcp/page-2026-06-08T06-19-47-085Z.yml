@@ -1,0 +1,36 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Room Guide" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Select your tag, move around the room — info and audio play automatically.
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - text: "Choose tag:"
+      - generic [ref=e8]:
+        - button "Tag 1" [ref=e9]
+        - button "Tag 2" [ref=e10]
+        - button "Tag 3" [ref=e11]
+    - generic [ref=e12]:
+      - button "Enable Audio (required on iPhone)" [ref=e13]
+      - generic [ref=e14]:
+        - checkbox "Use speech (TTS)" [checked] [ref=e15]
+        - text: Use speech (TTS)
+  - generic [ref=e16]:
+    - generic "room map" [ref=e17]:
+      - generic "Sculpture" [ref=e18]: A
+      - generic "Mural" [ref=e20]: B
+      - generic "Fountain" [ref=e22]: C
+      - generic "Gallery" [ref=e24]: D
+      - generic "Panorama" [ref=e26]: E
+      - generic [ref=e28]: "1"
+    - complementary [ref=e29]:
+      - heading "No attraction nearby" [level=2] [ref=e43]
+      - paragraph [ref=e31]: Move near an attraction point to see details and hear the audio guide.
+  - generic [ref=e33]: "Speaking: Sculpture"
+  - generic [ref=e34]:
+    - heading "Simulator (for testing without ESP32)" [level=3] [ref=e35]
+    - generic [ref=e36]: "Tag: 1"
+    - slider [active] [ref=e37]: "4.8"
+    - slider [ref=e38]: "2"
+    - generic [ref=e39]: "x: 4.8 y: 2"
+    - button "Send simulated position" [ref=e40]
+  - generic [ref=e41]: Replace Firebase config in app.js to connect real ESP32 data. See README for details.

@@ -45,7 +45,7 @@ function blankZone(){
   return { id:++zSeq, name:"New area", title:"New area", message:"",
     color:"#58a6ff", icon:"📍", xmin:0, ymin:0, xmax:1, ymax:1,
     sound:true, once:true, cooldownMs:5000, holdMs:6000,
-    image:"", linkLabel:"", linkUrl:"",
+    image:"", audio:"", linkLabel:"", linkUrl:"",
     occupied:false, wasInside:false, lastFired:0 };
 }
 // Normalise one entry from zones.config.js into our internal shape.
@@ -56,7 +56,7 @@ function fromConfig(z,i){
     xmin:Math.min(+a.xmin,+a.xmax), xmax:Math.max(+a.xmin,+a.xmax),
     ymin:Math.min(+a.ymin,+a.ymax), ymax:Math.max(+a.ymin,+a.ymax),
     sound:!!z.sound, once:z.once!==false, cooldownMs:+z.cooldownMs||0, holdMs:+z.holdMs||6000,
-    image:z.image||"", linkLabel:(z.link&&z.link.label)||"", linkUrl:(z.link&&z.link.url)||"",
+    image:z.image||"", audio:z.audio||"", linkLabel:(z.link&&z.link.label)||"", linkUrl:(z.link&&z.link.url)||"",
     occupied:false, wasInside:false, lastFired:0 };
 }
 function defaultsFromConfig(){
@@ -65,7 +65,7 @@ function defaultsFromConfig(){
   return cfg.map(fromConfig).filter(z=>[z.xmin,z.xmax,z.ymin,z.ymax].every(isFinite));
 }
 const EDIT_FIELDS = ["id","name","title","message","color","icon","xmin","ymin","xmax","ymax",
-                     "sound","once","cooldownMs","holdMs","image","linkLabel","linkUrl"];
+                     "sound","once","cooldownMs","holdMs","image","audio","linkLabel","linkUrl"];
 function saveZones(){
   const out = zones.map(z=>{ const o={}; EDIT_FIELDS.forEach(k=>o[k]=z[k]); return o; });
   localStorage.setItem(ZKEY, JSON.stringify(out));
@@ -131,6 +131,8 @@ function zoneCardHTML(z){
       </div>
       <label>Image URL (optional)</label>
       <input class="zf" data-f="image" type="text" value="${esc(z.image)}">
+      <label>Audio guide URL (optional — plays on entry)</label>
+      <input class="zf" data-f="audio" type="text" value="${esc(z.audio)}" placeholder="attractions/a1-Long-building.mp3">
       <div class="row">
         <div><label>Link label</label><input class="zf" data-f="linkLabel" type="text" value="${esc(z.linkLabel)}"></div>
         <div><label>Link URL</label><input class="zf" data-f="linkUrl" type="text" value="${esc(z.linkUrl)}"></div>
@@ -250,7 +252,18 @@ function showToast(z){
   $("toasts").appendChild(el);
   setTimeout(close, +z.holdMs||6000);
 }
-function fireTrigger(z){ showToast(z); if(z.sound) beep(); logEvent(z,"enter"); }
+// Audio guide: one shared player so a guide keeps playing after the toast closes
+// and a new zone interrupts the previous one.
+const guideAudio = new Audio();
+let audioReady=false;
+function unlockAudio(){            // call from a user gesture (Start / Test) for iOS
+  try{ guideAudio.muted=true; guideAudio.play().then(()=>{ guideAudio.pause(); guideAudio.currentTime=0; guideAudio.muted=false; audioReady=true; }).catch(()=>{ guideAudio.muted=false; }); }catch(e){}
+}
+function playGuide(z){
+  if(!z.audio) return;
+  try{ guideAudio.src=z.audio; guideAudio.currentTime=0; guideAudio.play().catch(()=>{}); }catch(e){}
+}
+function fireTrigger(z){ showToast(z); if(z.sound) beep(); playGuide(z); logEvent(z,"enter"); }
 
 function inside(p,z){
   return !!(p && p.x>=Math.min(z.xmin,z.xmax) && p.x<=Math.max(z.xmin,z.xmax)
@@ -457,6 +470,7 @@ function drawSide(A,p){
 // ---------------------------------------------------------------------------
 $("start").onclick=()=>{ saveCfg(); clearInterval(timer); ema=null;
   try{ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume&&audioCtx.resume(); }catch(e){}
+  unlockAudio();
   publishDisplay();
   const ms=Math.max(100,+$("poll").value||250); tick(); timer=setInterval(tick,ms); };
 

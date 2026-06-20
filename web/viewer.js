@@ -159,7 +159,26 @@ function showToast(z){
   $("toasts").appendChild(el);
   setTimeout(close, +z.holdMs||6000);
 }
-function fireTrigger(z){ showToast(z); if(z.sound) beep(); logEvent(z,"enter"); }
+// Audio guide playback (visible player so visitors can pause/replay).
+const guideEl = $("guide");
+let audioReady=false;
+function enableAudio(){
+  audioReady=true;
+  try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); audioCtx.resume&&audioCtx.resume(); }catch(e){}
+  try{ guideEl.muted=true; guideEl.play().then(()=>{ guideEl.pause(); guideEl.currentTime=0; guideEl.muted=false; }).catch(()=>{ guideEl.muted=false; }); }catch(e){}
+  $("enableAudio").textContent="🔊 Audio on"; $("enableAudio").disabled=true;
+}
+$("enableAudio").onclick=enableAudio;
+function playGuide(z){
+  if(!z.audio){ return; }
+  try{
+    $("guideBar").style.display="flex";
+    $("guideNow").textContent=(z.icon?z.icon+" ":"")+"Now playing: "+(z.title||z.name);
+    guideEl.src=z.audio; guideEl.currentTime=0;
+    guideEl.play().catch(()=>{ if(!audioReady) $("guideNow").textContent="Tap “Enable audio” to hear guides."; });
+  }catch(e){}
+}
+function fireTrigger(z){ showToast(z); if(z.sound) beep(); playGuide(z); logEvent(z,"enter"); }
 function inside(p,z){
   return !!(p && p.x>=Math.min(z.xmin,z.xmax) && p.x<=Math.max(z.xmin,z.xmax)
               && p.y>=Math.min(z.ymin,z.ymax) && p.y<=Math.max(z.ymin,z.ymax));
