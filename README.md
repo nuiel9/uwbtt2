@@ -25,6 +25,65 @@ is currently inside a given area of the room.
    index.html (control: setup + zone editor)   viewer.html (map + notifications)
 ```
 
+## Architecture
+
+The system has three tiers — **edge hardware**, a **cloud datastore**, and a
+**static web frontend** — with Firebase Realtime Database as the only thing they
+all share. Nothing talks peer-to-peer over IP; every cross-tier message is a
+read or write against the database.
+
+```
+┌───────────────────────── EDGE (ESP32-S3 + DW3000 UWB) ─────────────────────────┐
+│                                                                                 │
+│   TAG (initiator) ──SS-TWR──► ANCHOR 1 ◄──SS-TWR (calib)──► ANCHOR 2 / 3        │
+│      │ ranges A1,A2,A3 each loop          │ range peers only on request         │
+│      ▼                                    ▼                                      │
+│   PUT /live {d1,d2,d3}              PATCH /calib {d12,d13,d23}                    │
+│      │              GET /control/calibrate (poll token)  ▲                       │
+└──────┼────────────────────────────────────┼─────────────┼──────────────────────┘
+       │ WiFi / HTTPS (REST)                 │             │
+       ▼                                     ▼             │
+┌───────────────────────── CLOUD (Firebase) ──────────────────────────────────┐
+│   Realtime Database:  /live  /calib  /control/calibrate  /display            │
+│   Hosting (static CDN):  serves web/  →  https://uwb-positioning-a2892.web.app│
+└──────┬───────────────────────────────────────────────────────────────────────┘
+       │ HTTPS (REST polling, ~3 Hz)
+       ▼
+┌───────────────────────── FRONTEND (browser, no build step) ──────────────────┐
+│   index.html / app.js   = CONTROL site (setup, calibration, zone editor)      │
+│        writes /control/calibrate, /display                                    │
+│   viewer.html/viewer.js = VIEWER site (read-only map + notifications)          │
+│        reads  /live, /calib, /display                                         │
+│   trilateration runs client-side: /calib → anchor geometry, /live → tag X/Y/Z │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Components**
+
+- **Tag (`uwb-tag/`)** — ESP32-S3 + DW3000 initiator. Ranges anchors 1→2→3 via
+  single-sided two-way ranging (SS-TWR) and `PUT`s `{d1,d2,d3}` to `/live` (~3 Hz).
+- **Anchors (`UWB-ANCHOR/`)** — three ESP32-S3 + DW3000 responders, one firmware
+  build with a per-board `ANCHOR_ID`. They respond to the tag continuously and,
+  only when they see a fresh token at `/control/calibrate`, range each other once
+  and `PATCH` the anchor-to-anchor distances to `/calib`.
+- **Firebase Realtime Database** — the single source of truth and the message bus.
+  All four data paths (`/live`, `/calib`, `/control/calibrate`, `/display`) are
+  documented under [Firebase](#2-firebase).
+- **Firebase Hosting** — serves the static `web/` folder over CDN at
+  `https://uwb-positioning-a2892.web.app`. Deploy with `firebase deploy --only hosting`.
+- **Frontend (`web/`)** — plain HTML/JS, no build step. The **control site**
+  configures the system and publishes config to `/display`; the **read-only
+  viewer site** renders the live map. **Trilateration happens entirely in the
+  browser** — the database only stores distances, never coordinates.
+
+**Data flow**
+
+1. Tag ranges all three anchors and writes raw distances to `/live`.
+2. On a calibration request, anchors range each other and write `/calib`.
+3. The control site publishes geometry + zone config to `/display`.
+4. Browsers poll `/live`/`/calib`/`/display`, solve anchor geometry from `/calib`,
+   trilaterate the tag from `/live`, and render the map + zone notifications.
+
 ## Repository layout
 
 | Path | What it is |
