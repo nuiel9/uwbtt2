@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<title>UWB Indoor Positioning — หลักการทำงาน</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Tahoma", "Leelawadee UI", "Segoe UI", sans-serif;
+    color: #1a1f29; line-height: 1.55; font-size: 13px; margin: 0;
+  }
+  h1 { font-size: 24px; color: #0b5cad; margin: 0 0 4px; }
+  .sub { color: #5a6573; font-size: 12px; margin-bottom: 18px; }
+  h2 {
+    font-size: 17px; color: #0b5cad; margin: 22px 0 8px;
+    border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;
+  }
+  h3 { font-size: 14px; color: #15406b; margin: 14px 0 4px; }
+  p { margin: 6px 0; }
+  ul { margin: 6px 0 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code {
+    background: #eef2f7; padding: 1px 5px; border-radius: 4px;
+    font-family: "Consolas", monospace; font-size: 12px; color: #b3216b;
+  }
+  pre {
+    background: #0f1722; color: #d6e2f0; padding: 12px 14px;
+    border-radius: 8px; font-family: "Consolas", monospace; font-size: 10.5px;
+    line-height: 1.4; overflow-x: auto; white-space: pre;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+  th, td { border: 1px solid #d4dbe4; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef4fb; color: #15406b; }
+  .tier { background:#f5f8fc; border:1px solid #dbe6f2; border-radius:8px; padding:10px 14px; margin:8px 0; }
+  .note { background:#fff8e6; border-left:4px solid #f4b400; padding:8px 12px; border-radius:0 6px 6px 0; margin:10px 0; }
+  .footer { margin-top: 26px; color:#8a94a3; font-size:11px; border-top:1px solid #e2e8f0; padding-top:8px; }
+  .nobreak { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>UWB Indoor Positioning System</h1>
+<div class="sub">หลักการทำงานทั้งหมด · โปรเจกต์ <strong>uwbtt2</strong> (SK TechChange) · 21 มิ.ย. 2026</div>
+
+<h2>ภาพรวมระบบ</h2>
+<p>ระบบหาตำแหน่งภายในอาคาร (indoor positioning) แบบ real-time โดยใช้คลื่นวิทยุ
+<strong>UWB (Ultra-Wideband)</strong> ผ่านชิป <strong>Qorvo DW3000</strong> บนบอร์ด
+<strong>ESP32-S3</strong> แบ่งการทำงานเป็น 3 ชั้น:</p>
+<pre>ฮาร์ดแวร์ (Tag + Anchors)  →  คลาวด์ (Firebase)  →  เว็บ (เบราว์เซอร์)</pre>
+
+<h2>1. ชั้นฮาร์ดแวร์ (Edge)</h2>
+
+<h3>Tag — ตัวที่เคลื่อนที่ (initiator)</h3>
+<ul>
+  <li>ESP32-S3 + DW3000 ที่พกติดตัวหรือติดวัตถุที่ต้องการตามหา</li>
+  <li>วัดระยะไปยัง <strong>Anchor 1 → 2 → 3</strong> ทีละตัวในแต่ละรอบ ด้วยเทคนิค
+      <strong>SS-TWR (Single-Sided Two-Way Ranging)</strong></li>
+  <li>หลักการ SS-TWR: Tag ส่งสัญญาณ → Anchor ตอบกลับ → Tag วัด <strong>เวลาไป-กลับ</strong>
+      แล้วคำนวณระยะจากความเร็วแสง</li>
+  <li>ได้ระยะ <code>d1, d2, d3</code> (เมตร) แล้วส่งขึ้น Firebase ที่ <code>/live</code>
+      ผ่าน WiFi (~3 ครั้ง/วินาที)</li>
+</ul>
+
+<h3>Anchors — 3 ตัวที่ติดตั้งอยู่กับที่ (responder)</h3>
+<ul>
+  <li>ใช้ <strong>เฟิร์มแวร์ตัวเดียวกัน</strong> flash ลงทั้ง 3 บอร์ด เปลี่ยนแค่ <code>ANCHOR_ID</code> = 1, 2, 3</li>
+  <li>หน้าที่หลัก: ตอบสัญญาณ ranging ให้ Tag ตลอดเวลา</li>
+  <li>หน้าที่พิเศษ: <strong>calibration ที่สั่งจากเว็บ</strong> — anchor วัดระยะระหว่างกันเอง
+      (<code>d12, d13, d23</code>) เพื่อให้ระบบรู้ผังตำแหน่งของ anchor โดยไม่ต้องวัดเอง</li>
+</ul>
+
+<h2>2. หลักการ Calibration (จุดเด่นของระบบ)</h2>
+<p>แทนที่จะวัดระยะ anchor ด้วยมือแล้วพิมพ์เข้าไป ระบบใช้ <strong>web-triggered calibration</strong>:</p>
+<ul>
+  <li>กดปุ่ม <strong>"Calibrate anchors"</strong> ในเว็บ → เว็บเขียน "token" ใหม่ลง <code>/control/calibrate</code></li>
+  <li>anchor ทุกตัว <strong>poll token นั้นทุก 3 วินาที</strong> (<code>CALIB_POLL_MS</code>)</li>
+  <li>เมื่อเจอ token ใหม่ → anchor วัดระยะระหว่างกัน <strong>1 ครั้ง</strong> แล้ว <code>PATCH</code> ขึ้น <code>/calib</code></li>
+  <li>กติกาว่าใครเริ่ม: anchor ที่ ID น้อยกว่าเป็นฝ่ายเริ่มวัด
+      → A1 วัด <code>d12, d13</code> · A2 วัด <code>d23</code> · A3 ตอบอย่างเดียว</li>
+  <li>เพราะ anchor ได้ token พร้อมกัน จึง <strong>หน่วงเวลาเริ่มต่างกัน</strong> ตัวละ
+      <code>(ID-1) × 1.2 วินาที</code> เพื่อให้ตัวที่เริ่มวัดทำงานตอนคู่ของมันยังฟังอยู่</li>
+</ul>
+<div class="note"><strong>สำคัญ:</strong> ตอนเปิดเครื่อง anchor จะรับ token เดิมที่มีอยู่โดยไม่ calibrate
+→ ไม่ calibrate เองตอนบูต ค่าที่วัดได้เก็บถาวรใน Firebase ต้องกดใหม่เฉพาะตอนย้าย anchor เท่านั้น</div>
+
+<h2 class="nobreak">3. ชั้นคลาวด์ (Firebase)</h2>
+<p>Firebase Realtime Database ทำหน้าที่เป็น <strong>"กระดานกลาง" (message bus)</strong> —
+ทุกฝ่ายสื่อสารผ่านการอ่าน/เขียน database นี้ ไม่มีการคุยตรงกันแบบ peer-to-peer</p>
+<table class="nobreak">
+  <tr><th>Path</th><th>ใครเขียน</th><th>ข้อมูล</th></tr>
+  <tr><td><code>/live</code></td><td>Tag</td><td><code>{d1, d2, d3, seq, ts}</code> ระยะ tag→anchor</td></tr>
+  <tr><td><code>/calib</code></td><td>Anchors</td><td><code>{d12, d13, d23, ts}</code> ระยะระหว่าง anchor</td></tr>
+  <tr><td><code>/control/calibrate</code></td><td>เว็บ control</td><td>token (ตัวเลข) สั่ง calibrate</td></tr>
+  <tr><td><code>/display</code></td><td>เว็บ control</td><td>config สำหรับ viewer (zones, geometry, options)</td></tr>
+</table>
+<p>นอกจากนี้ <strong>Firebase Hosting</strong> ยัง host เว็บ (static CDN) ที่
+<code>https://uwb-positioning-a2892.web.app</code></p>
+<div class="note"><strong>กลไกกันสัญญาณหลุด:</strong> ถ้า ranging หลุดชั่วคราว ระบบจะ
+<strong>ค้างค่าดีล่าสุดไว้</strong> (สูงสุด ~9 วินาที, <code>RANGE_HOLD_MAX</code>)
+เพื่อให้ตำแหน่งนิ่ง ถ้าหลุดนานจริงถึงรายงานเป็น <code>-1</code> ("ไม่มีข้อมูล")</div>
+
+<h2>4. ชั้นเว็บ (Frontend) — การคำนวณตำแหน่งจริงอยู่ที่นี่</h2>
+<p>เว็บเป็น HTML/JS ล้วน <strong>ไม่มี build step</strong> แบ่งเป็น 2 หน้า:</p>
+
+<h3>Control site (<code>index.html</code> / <code>app.js</code>)</h3>
+<ul>
+  <li>หน้าตั้งค่าทั้งหมด: ใส่ Firebase host, สั่ง calibrate, ตั้ง geometry, ดู telemetry</li>
+  <li>มี <strong>zone editor</strong> วาดพื้นที่ trigger บนแผนที่ แล้ว publish ค่าทั้งหมดขึ้น <code>/display</code></li>
+</ul>
+
+<h3>Viewer site (<code>viewer.html</code> / <code>viewer.js</code>)</h3>
+<ul>
+  <li>หน้า <strong>อ่านอย่างเดียว</strong> เหมาะกับจอติดผนัง/แท็บเล็ต (แสดงชื่อ <strong>"SK TechChange"</strong>)</li>
+  <li>อ่าน <code>/live</code>, <code>/calib</code>, <code>/display</code> มาแสดงแผนที่สดและ pop-up แจ้งเตือน</li>
+</ul>
+
+<h3>หัวใจการคำนวณ — Trilateration (ทำในเบราว์เซอร์)</h3>
+<p>Database เก็บแค่ "ระยะทาง" ไม่เคยเก็บ "พิกัด" — เบราว์เซอร์เป็นคนคำนวณพิกัดเอง:</p>
+<ul>
+  <li>จาก <code>/calib</code> หาผัง anchor: วาง <code>A1=(0,0)</code>, <code>A2=(d12,0)</code>
+      แล้วแก้สมการหา <code>A3</code> จาก <code>d13</code>/<code>d23</code></li>
+  <li>จาก <code>/live</code> (d1, d2, d3) ใช้ trilateration หาตำแหน่ง <strong>X / Y / Z</strong> ของ tag</li>
+  <li>แสดงผล: ค่า X/Y/Z, fit residual (ยิ่งน้อยยิ่งแม่น), Top view (X-Y), Side view (X-Z) พร้อม smoothing (EMA)</li>
+</ul>
+
+<h3>Zone triggers — พื้นที่แจ้งเตือน</h3>
+<ul>
+  <li>วาดกล่องพื้นที่บนแผนที่ ตั้งชื่อ/ข้อความ/สี/ไอคอน/เสียงบีป/รูป/audio guide/ลิงก์</li>
+  <li>เมื่อ tag เดินเข้าพื้นที่ → เด้ง pop-up + บีป + บันทึก log</li>
+  <li>ชุดเริ่มต้นใน <code>zones.config.js</code> คือทัวร์ <strong>SK TechChange</strong> 6 จุด พร้อมรูป+MP3</li>
+</ul>
+
+<div class="note nobreak"><strong>เรื่องความสูง Z มีความกำกวม:</strong> Anchor 3 ตัวกำหนด
+<strong>ระนาบแบน</strong> → Z ที่คำนวณได้ไม่รู้ว่าอยู่เหนือหรือใต้ระนาบ ต้องใช้ปุ่ม
+<strong>"Tag is below anchor plane"</strong> เลือกด้าน ถ้าอยากได้ 3 มิติแม่นจริงต้องเพิ่ม
+<strong>anchor ตัวที่ 4 ที่ติดนอกระนาบ</strong></div>
+
+<h2 class="nobreak">สรุป Flow ทั้งหมด</h2>
+<pre class="nobreak">┌──────── EDGE (ESP32-S3 + DW3000) ────────┐
+│  TAG ──SS-TWR──► ANCHOR 1 / 2 / 3         │
+│   │ PUT /live {d1,d2,d3}    │ PATCH /calib │
+└───┼────────────────────────┼──────────────┘
+    │ WiFi / HTTPS            │
+    ▼                        ▼
+┌──────── CLOUD (Firebase) ─────────────────┐
+│  RTDB: /live /calib /control /display     │
+│  Hosting: uwb-positioning-a2892.web.app   │
+└───┬───────────────────────────────────────┘
+    │ HTTPS polling (~3 Hz)
+    ▼
+┌──────── FRONTEND (browser) ───────────────┐
+│  Control: index.html → /control, /display │
+│  Viewer:  viewer.html ← /live /calib       │
+│  Trilateration ทำในเบราว์เซอร์ → X/Y/Z      │
+└───────────────────────────────────────────┘
+
+1. Tag วัดระยะ 3 anchor → เขียน /live
+2. (กด calibrate) Anchor วัดกันเอง → เขียน /calib
+3. Control site เขียน config → /display
+4. เบราว์เซอร์อ่านทั้งหมด → คำนวณ geometry + trilateration → แสดงแผนที่ + แจ้งเตือน zone</pre>
+
+<p>ทุกอย่างเชื่อมกันผ่าน Firebase เท่านั้น ทำให้แยกฮาร์ดแวร์ คลาวด์ และเว็บออกจากกันอย่างชัดเจน</p>
+
+<div class="footer">โปรเจกต์ uwbtt2 · github.com/nuiel9/uwbtt2 · สร้างเอกสารด้วย Claude Code</div>
+
+</body>
+</html>

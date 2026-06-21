@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>UWB Indoor Positioning — How It Works</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Tahoma", sans-serif;
+    color: #1a1f29; line-height: 1.55; font-size: 13px; margin: 0;
+  }
+  h1 { font-size: 24px; color: #0b5cad; margin: 0 0 4px; }
+  .sub { color: #5a6573; font-size: 12px; margin-bottom: 18px; }
+  h2 {
+    font-size: 17px; color: #0b5cad; margin: 22px 0 8px;
+    border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;
+  }
+  h3 { font-size: 14px; color: #15406b; margin: 14px 0 4px; }
+  p { margin: 6px 0; }
+  ul { margin: 6px 0 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  code {
+    background: #eef2f7; padding: 1px 5px; border-radius: 4px;
+    font-family: "Consolas", monospace; font-size: 12px; color: #b3216b;
+  }
+  pre {
+    background: #0f1722; color: #d6e2f0; padding: 12px 14px;
+    border-radius: 8px; font-family: "Consolas", monospace; font-size: 10.5px;
+    line-height: 1.4; overflow-x: auto; white-space: pre;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+  th, td { border: 1px solid #d4dbe4; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef4fb; color: #15406b; }
+  .note { background:#fff8e6; border-left:4px solid #f4b400; padding:8px 12px; border-radius:0 6px 6px 0; margin:10px 0; }
+  .footer { margin-top: 26px; color:#8a94a3; font-size:11px; border-top:1px solid #e2e8f0; padding-top:8px; }
+  .nobreak { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>UWB Indoor Positioning System</h1>
+<div class="sub">Complete Working Principle &middot; Project <strong>uwbtt2</strong> (SK TechChange) &middot; Jun 21, 2026</div>
+
+<h2>System Overview</h2>
+<p>A real-time indoor positioning system using <strong>UWB (Ultra-Wideband)</strong>
+radio via the <strong>Qorvo DW3000</strong> chip on <strong>ESP32-S3</strong> boards.
+The system is organized into three tiers:</p>
+<pre>Hardware (Tag + Anchors)  →  Cloud (Firebase)  →  Web (Browser)</pre>
+
+<h2>1. Hardware Tier (Edge)</h2>
+
+<h3>Tag — the mobile unit (initiator)</h3>
+<ul>
+  <li>ESP32-S3 + DW3000 carried by a person or attached to the object to be tracked.</li>
+  <li>Ranges to <strong>Anchor 1 → 2 → 3</strong> one at a time each loop using
+      <strong>SS-TWR (Single-Sided Two-Way Ranging)</strong>.</li>
+  <li>SS-TWR principle: the Tag sends a signal → the Anchor replies → the Tag measures
+      the <strong>round-trip time</strong> and computes distance from the speed of light.</li>
+  <li>Produces distances <code>d1, d2, d3</code> (metres) and uploads them to Firebase
+      at <code>/live</code> over WiFi (~3 times/second).</li>
+</ul>
+
+<h3>Anchors — three fixed units (responder)</h3>
+<ul>
+  <li>The <strong>same firmware</strong> is flashed to all 3 boards; only <code>ANCHOR_ID</code>
+      (= 1, 2, 3) differs per board.</li>
+  <li>Main role: continuously respond to the Tag's ranging requests.</li>
+  <li>Special role: <strong>web-triggered calibration</strong> — anchors range each other
+      (<code>d12, d13, d23</code>) so the system learns the anchor layout without manual measurement.</li>
+</ul>
+
+<h2>2. Calibration Principle (the standout feature)</h2>
+<p>Instead of measuring anchor distances by hand and typing them in, the system uses
+<strong>web-triggered calibration</strong>:</p>
+<ul>
+  <li>Press <strong>"Calibrate anchors"</strong> in the web app → the app writes a fresh
+      "token" to <code>/control/calibrate</code>.</li>
+  <li>Every anchor <strong>polls that token every 3 seconds</strong> (<code>CALIB_POLL_MS</code>).</li>
+  <li>On seeing a new token → each anchor ranges its peers <strong>once</strong> and
+      <code>PATCH</code>es <code>/calib</code>.</li>
+  <li>Who initiates: the lower-ID anchor of each pair
+      → A1 measures <code>d12, d13</code> &middot; A2 measures <code>d23</code> &middot; A3 only responds.</li>
+  <li>Since all anchors get the token at once, each <strong>staggers its start</strong> by
+      <code>(ID-1) × 1.2 s</code> so the initiator can range a peer while that peer is still listening.</li>
+</ul>
+<div class="note"><strong>Important:</strong> At boot, an anchor adopts whatever token already exists
+<em>without</em> calibrating → it never calibrates on power-up. Values persist in Firebase, so you only
+press the button again if the anchors physically move.</div>
+
+<h2 class="nobreak">3. Cloud Tier (Firebase)</h2>
+<p>The Firebase Realtime Database acts as the <strong>central message bus</strong> — every tier
+communicates by reading/writing this database; nothing talks peer-to-peer over IP.</p>
+<table class="nobreak">
+  <tr><th>Path</th><th>Written by</th><th>Data</th></tr>
+  <tr><td><code>/live</code></td><td>Tag</td><td><code>{d1, d2, d3, seq, ts}</code> — tag→anchor distances</td></tr>
+  <tr><td><code>/calib</code></td><td>Anchors</td><td><code>{d12, d13, d23, ts}</code> — anchor-to-anchor distances</td></tr>
+  <tr><td><code>/control/calibrate</code></td><td>Control site</td><td>token (number) — calibration request</td></tr>
+  <tr><td><code>/display</code></td><td>Control site</td><td>config for the viewer (zones, geometry, options)</td></tr>
+</table>
+<p>In addition, <strong>Firebase Hosting</strong> serves the static <code>web/</code> folder over CDN at
+<code>https://uwb-positioning-a2892.web.app</code>.</p>
+<div class="note"><strong>Dropout handling:</strong> If ranging is briefly lost, the system
+<strong>holds the last good distance</strong> (up to ~9 s, <code>RANGE_HOLD_MAX</code>) so the position
+stays steady; only a prolonged loss is reported as <code>-1</code> ("no data").</div>
+
+<h2>4. Web Tier (Frontend) — where the real positioning math runs</h2>
+<p>The web app is plain HTML/JS with <strong>no build step</strong>, split into two sites:</p>
+
+<h3>Control site (<code>index.html</code> / <code>app.js</code>)</h3>
+<ul>
+  <li>All setup: enter the Firebase host, trigger calibration, set geometry, view telemetry.</li>
+  <li>Includes a <strong>zone editor</strong> to draw trigger areas on the map, then publishes
+      everything to <code>/display</code>.</li>
+</ul>
+
+<h3>Viewer site (<code>viewer.html</code> / <code>viewer.js</code>)</h3>
+<ul>
+  <li>A <strong>read-only</strong> site for a wall display or tablet (titled <strong>"SK TechChange"</strong>).</li>
+  <li>Reads <code>/live</code>, <code>/calib</code>, <code>/display</code> to render the live map and pop-up notifications.</li>
+</ul>
+
+<h3>The core math — Trilateration (runs in the browser)</h3>
+<p>The database only stores <em>distances</em>, never <em>coordinates</em> — the browser computes positions itself:</p>
+<ul>
+  <li>From <code>/calib</code>, derive the anchor layout: place <code>A1=(0,0)</code>, <code>A2=(d12,0)</code>,
+      then solve <code>A3</code> from <code>d13</code>/<code>d23</code>.</li>
+  <li>From <code>/live</code> (d1, d2, d3), trilaterate the tag's <strong>X / Y / Z</strong> position.</li>
+  <li>Display: X/Y/Z values, a fit residual (lower = better), Top view (X-Y) and Side view (X-Z),
+      plus EMA smoothing to tame jitter.</li>
+</ul>
+
+<h3>Zone triggers — notification areas</h3>
+<ul>
+  <li>Draw box areas on the map and set name/message/colour/icon/beep/image/audio-guide/link.</li>
+  <li>When the tag enters an area → a pop-up appears, an optional beep sounds, and the event is logged.</li>
+  <li>The default set in <code>zones.config.js</code> is the <strong>SK TechChange</strong> tour — 6 attractions with images + MP3s.</li>
+</ul>
+
+<div class="note nobreak"><strong>About Z (height) ambiguity:</strong> Three anchors define a
+<strong>flat plane</strong>, so the computed Z could be the same distance above <em>or</em> below it.
+Use the <strong>"Tag is below anchor plane"</strong> toggle to pick the side. For robust 3-D, add a
+<strong>4th anchor mounted out of the plane</strong>.</div>
+
+<h2 class="nobreak">Full System Flow</h2>
+<pre class="nobreak">┌──────── EDGE (ESP32-S3 + DW3000) ────────┐
+│  TAG ──SS-TWR──► ANCHOR 1 / 2 / 3         │
+│   │ PUT /live {d1,d2,d3}    │ PATCH /calib │
+└───┼────────────────────────┼──────────────┘
+    │ WiFi / HTTPS            │
+    ▼                        ▼
+┌──────── CLOUD (Firebase) ─────────────────┐
+│  RTDB: /live /calib /control /display     │
+│  Hosting: uwb-positioning-a2892.web.app   │
+└───┬───────────────────────────────────────┘
+    │ HTTPS polling (~3 Hz)
+    ▼
+┌──────── FRONTEND (browser) ───────────────┐
+│  Control: index.html → /control, /display │
+│  Viewer:  viewer.html ← /live /calib       │
+│  Trilateration runs in browser → X/Y/Z    │
+└───────────────────────────────────────────┘
+
+1. Tag ranges 3 anchors → writes /live
+2. (On calibrate) Anchors range each other → write /calib
+3. Control site writes config → /display
+4. Browser reads everything → solves geometry + trilateration → renders map + zone alerts</pre>
+
+<p>Everything is connected only through Firebase, cleanly decoupling the hardware, cloud, and web tiers.</p>
+
+<div class="footer">Project uwbtt2 &middot; github.com/nuiel9/uwbtt2 &middot; Document generated with Claude Code</div>
+
+</body>
+</html>
